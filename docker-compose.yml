@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    env_file:
+      - .env.production
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_DB: myapp
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    env_file:
+      - .env.production
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\""]
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: rustfs/rustfs:latest
+    command: /data
+    env_file:
+      - .env.production
+    environment:
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_OBS_LOGGER_LEVEL: "error"
+    ports:
+      - "9000:9000"
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+
+  api:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env.production
+    ports:
+      - "3000:3000"
+    restart: always
+
+volumes:
+  pgdata:
+  minio_data:

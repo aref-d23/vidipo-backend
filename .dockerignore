@@ -1,0 +1,44 @@
+# Git
+.git
+.gitignore
+.github
+
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+
+# Dependencies and build output
+node_modules
+dist
+coverage
+.npm
+
+# Runtime data and logs
+temp-uploads
+uploads
+backups
+*.log
+
+# Database dumps and backups
+*.sql
+*.sql.gz
+*.dump
+*.bak
+*.backup*
+*.before-*
+
+# Temporary and verification files
+verify*.json
+post.json
+video-backend-code.txt
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+
+# Local maintenance scripts
+/cleanup-stories.ts
+/fix-urls.ts

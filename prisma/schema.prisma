@@ -1,0 +1,430 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VOICE
+  FILE
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWED
+  RESOLVED
+  REJECTED
+}
+
+enum SubStatus {
+  ACTIVE
+  EXPIRED
+  CANCELED
+}
+
+enum PayStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  phone        String?  @unique
+  phoneHash    String?  @unique
+  username     String?  @unique
+  passwordHash String?
+  displayName  String?
+  avatarUrl    String?
+  bio          String?
+  age          Int?
+  role         Role     @default(USER)
+  isBanned     Boolean  @default(false)
+  lastSeenAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  lastStoryViewersCheckAt DateTime?
+  mutesMade    Mute[]  @relation("muter")
+  mutesReceived Mute[] @relation("muted")
+  comments Comment[]
+  lastPostsSeenAt DateTime @default("1970-01-01T00:00:00Z")
+  lastReelsSeenAt DateTime @default("1970-01-01T00:00:00Z")
+
+  refreshTokens RefreshToken[]
+  posts         Post[]
+  stories       Story[]
+  sentMessages  Message[]      @relation("sent")
+  blocksSent    Block[]        @relation("blocker")
+  blocksRecv    Block[]        @relation("blocked")
+  reportsMade   Report[]       @relation("reporter")
+  reportsGot    Report[]       @relation("reported")
+  subscription  Subscription?
+  payments      Payment[]
+  followers     Follow[]       @relation("following")
+  following     Follow[]       @relation("follower")
+  savedPosts    PostSave[]
+  postReactions PostReaction[]
+  storyReactions StoryReaction[]
+
+  isGhostMode       Boolean @default(false)
+  hideReadReceipts  Boolean @default(false)
+  isVerified        Boolean @default(false)
+
+  // ⭐️ شمارنده لایک پروفایل
+  likedByCount Int @default(0)
+
+  // ⭐️⭐️⭐️ روابط لایک پروفایل (فقط یک بار تعریف شود) ⭐️⭐️⭐️
+  likesGiven    ProfileLike[] @relation("LikedUsers")
+  likesReceived ProfileLike[] @relation("LikesReceived")
+
+  // ⭐️⭐️⭐️ رابطه بازدید ریلز (جدید) ⭐️⭐️⭐️
+  reelViews     ReelView[]   @relation("UserReelViews")
+
+  @@index([createdAt])
+}
+
+// ⭐️ مدل جدید برای ردیابی لایک‌های پروفایل
+model ProfileLike {
+  id        String   @id @default(cuid())
+  userId    String
+  targetId  String
+  createdAt DateTime @default(now())
+
+  // روابط
+  user      User     @relation("LikedUsers", fields: [userId], references: [id])
+  target    User     @relation("LikesReceived", fields: [targetId], references: [id])
+
+  @@unique([userId, targetId]) // جلوگیری از لایک تکراری
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  deviceId  String
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  userAId   String
+  userBId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  messages Message[]
+  @@unique([userAId, userBId])
+  @@index([userAId])
+  @@index([userBId])
+}
+
+model PostReaction {
+  id     String @id @default(cuid())
+  postId String
+  userId String
+  type   String
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([postId, userId])
+}
+
+model Message {
+  id             String      @id @default(cuid())
+  conversationId String
+  senderId       String
+  cipherText     String
+  iv             String
+  authTag        String
+  type           MessageType @default(TEXT)
+  mediaUrl       String?
+  storyOwnerId String?
+  readAt         DateTime?
+  createdAt      DateTime    @default(now())
+  deletedForA    Boolean     @default(false)
+  deletedForB    Boolean     @default(false)
+
+  // فیلدهای ویرایش پیام
+  isEdited     Boolean  @default(false)
+  editedAt     DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation("sent", fields: [senderId], references: [id])
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+}
+
+model Block {
+  id        String   @id @default(cuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+  blocker User @relation("blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
+}
+
+model Mute {
+  id        String   @id @default(cuid())
+  muterId   String
+  mutedId   String
+  createdAt DateTime @default(now())
+
+  muter User @relation("muter", fields: [muterId], references: [id], onDelete: Cascade)
+  muted User @relation("muted", fields: [mutedId], references: [id], onDelete: Cascade)
+
+  @@unique([muterId, mutedId])
+  @@index([mutedId])
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+model Report {
+  id         String       @id @default(cuid())
+  reporterId String
+  reportedId String
+  reason     String
+  details    String?
+  status     ReportStatus @default(OPEN)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  reporter User @relation("reporter", fields: [reporterId], references: [id])
+  reported User @relation("reported", fields: [reportedId], references: [id])
+  @@index([status])
+  @@index([reportedId])
+}
+
+enum PostType {
+  TEXT
+  VIDEO
+}
+
+model Post {
+  id           String   @id @default(cuid())
+  authorId     String
+  type         PostType @default(TEXT)
+  content      String
+  mediaUrls    String[]
+  videoUrl     String?
+  thumbnailUrl String?
+  hashtags     String[]
+  category    String   @default("general")
+  likeCount    Int      @default(0)
+  commentCount Int      @default(0)
+  shareCount   Int      @default(0)
+  saveCount    Int      @default(0)
+  viewCount    Int      @default(0)
+  isHidden     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  author   User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  likes    PostLike[]
+  comments Comment[]
+  saves    PostSave[]
+  reactions   PostReaction[]
+
+  // ⭐️⭐️⭐️ افزودن رابطه بازدید ریلز به مدل POST (درست شد) ⭐️⭐️⭐️
+  views    ReelView[] @relation("PostReelViews")
+
+  @@index([createdAt])
+  @@index([authorId])
+  @@index([type])
+}
+
+model PostLike {
+  id     String @id @default(cuid())
+  postId String
+  userId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  @@unique([postId, userId])
+  @@index([userId])
+}
+
+model PostSave {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([userId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  content   String
+  likeCount Int      @default(0)
+  parentId  String?
+  createdAt DateTime @default(now())
+
+  post    Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent  Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Comment[]     @relation("CommentReplies")
+  likes   CommentLike[]
+
+  @@index([postId, createdAt])
+  @@index([parentId])
+}
+
+model CommentLike {
+  id        String   @id @default(cuid())
+  commentId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+  @@index([userId])
+}
+
+model Story {
+  id               String   @id @default(cuid())
+  userId           String
+  mediaUrl         String?
+  background       String?
+  caption          String?
+  hashtags         String[]
+  duration         Int      @default(5)
+  textOverlays     Json?
+  drawings         Json?
+  stickers         Json?
+  closeFriendsOnly Boolean  @default(false)
+  expiresAt        DateTime
+  createdAt        DateTime @default(now())
+  reactions StoryReaction[]
+
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  views StoryView[]
+
+  @@index([expiresAt])
+  @@index([userId])
+}
+
+model StoryReaction {
+  id        String   @id @default(cuid())
+  storyId   String
+  userId    String
+  type      String   @default("HEART")
+  createdAt DateTime @default(now())
+
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, storyId])
+  @@index([storyId])
+}
+
+model StoryView {
+  id        String   @id @default(cuid())
+  storyId   String
+  viewerId  String
+  viewedAt  DateTime @default(now())
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  @@unique([storyId, viewerId])
+  @@index([storyId])
+  @@index([viewerId])
+}
+
+model ReelView {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  // ⭐️⭐️⭐️ اصلاح روابط با نام‌های دقیق مطابق مدل‌های مادر ⭐️⭐️⭐️
+  user User @relation("UserReelViews", fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation("PostReelViews", fields: [postId], references: [id], onDelete: Cascade)
+
+  // جلوگیری از تکرار (هر کاربر فقط یک بار برای هر پست لاگ می‌شود)
+  @@unique([userId, postId])
+  @@index([postId])
+}
+
+model Plan {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  price     Int
+  duration  Int
+  features  Json
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  subscriptions Subscription[]
+  payments      Payment[]
+}
+
+model Subscription {
+  id      String    @id @default(cuid())
+  userId  String    @unique
+  planId  String
+  startAt DateTime  @default(now())
+  endAt   DateTime
+  status  SubStatus @default(ACTIVE)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan Plan @relation(fields: [planId], references: [id])
+  @@index([endAt])
+}
+
+model Payment {
+  id        String    @id @default(cuid())
+  userId    String
+  planId    String
+  amount    Int
+  authority String?   @unique
+  refId     String?
+  status    PayStatus @default(PENDING)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user User @relation(fields: [userId], references: [id])
+  plan Plan @relation(fields: [planId], references: [id])
+  @@index([userId])
+  @@index([status])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  target    String?
+  meta      Json?
+  ip        String?
+  createdAt DateTime @default(now())
+  @@index([actorId])
+  @@index([createdAt])
+}

@@ -1,0 +1,52 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Dependencies and build output
+node_modules/
+dist/
+coverage/
+
+# Runtime data and logs
+backups/
+temp-uploads/
+uploads/
+*.log
+
+# Backups and temporary files
+*.bak
+*.backup*
+*.sql
+*.sql.gz
+*.dump
+docker-compose.yml.before-*
+
+# Local verification and temporary artifacts
+verify*.json
+post.json
+video-backend-code.txt
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+prisma/schema.prisma.before_username_auth
+
+# Local maintenance scripts
+/cleanup-stories.ts
+/fix-urls.ts
+
+# Additional sensitive files
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.sqlite
+*.sqlite3
+
+# Keep Prisma migration history in Git
+!prisma/migrations/
+!prisma/migrations/**/*.sql
